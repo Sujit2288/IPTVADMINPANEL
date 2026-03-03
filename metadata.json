@@ -1,0 +1,5 @@
+{
+  "name": "IPTV Admin Master",
+  "description": "A professional IPTV management system with user, package, and channel control.",
+  "requestFramePermissions": []
+}
