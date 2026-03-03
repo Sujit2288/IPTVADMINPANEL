@@ -8,7 +8,7 @@ export enum UserStatus {
 export interface User {
   id: string;
   name: string;
-  mac: string;
+  macAddress: string;
   status: UserStatus;
   expiryDate: string;
   packageId: string;

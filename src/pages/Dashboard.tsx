@@ -53,17 +53,25 @@ export default function Dashboard() {
     revenue: 0
   });
 
+  const [recentUsers, setRecentUsers] = useState<any[]>([]);
+
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-      const users = snapshot.docs.map(doc => doc.data());
+      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setStats(prev => ({
         ...prev,
         totalUsers: snapshot.size,
-        activeUsers: users.filter(u => u.status === UserStatus.ACTIVE).length,
-        expiredUsers: users.filter(u => u.status === UserStatus.EXPIRED).length,
-        pendingUsers: users.filter(u => u.status === UserStatus.PENDING).length,
-        deniedUsers: users.filter(u => u.status === UserStatus.DENIED).length,
+        activeUsers: users.filter((u: any) => u.status === UserStatus.ACTIVE).length,
+        expiredUsers: users.filter((u: any) => u.status === UserStatus.EXPIRED).length,
+        pendingUsers: users.filter((u: any) => u.status === UserStatus.PENDING).length,
+        deniedUsers: users.filter((u: any) => u.status === UserStatus.DENIED).length,
       }));
+      
+      // Sort and get top 3 recent users
+      const sorted = [...users].sort((a: any, b: any) => 
+        new Date(b.expiryDate).getTime() - new Date(a.expiryDate).getTime()
+      ).slice(0, 3);
+      setRecentUsers(sorted);
     });
 
     const unsubPackages = onSnapshot(collection(db, "packages"), (snapshot) => {
@@ -147,18 +155,21 @@ export default function Dashboard() {
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Recent Activity</h3>
           <div className="space-y-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex gap-4">
+            {recentUsers.map((user) => (
+              <div key={user.id} className="flex gap-4">
                 <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
                   <UserPlus size={18} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">New user registered</p>
-                  <p className="text-xs text-slate-500">User "John Doe" with MAC 00:1A:2B:3C:4D:5E</p>
-                  <p className="text-[10px] text-slate-400 mt-1">2 hours ago</p>
+                  <p className="text-sm font-semibold text-slate-900">User Registered/Updated</p>
+                  <p className="text-xs text-slate-500">User "{user.name}" with MAC <span className="font-mono text-indigo-600">{user.macAddress}</span></p>
+                  <p className="text-[10px] text-slate-400 mt-1">Status: {user.status}</p>
                 </div>
               </div>
             ))}
+            {recentUsers.length === 0 && (
+              <p className="text-center text-slate-400 py-4">No recent activity</p>
+            )}
           </div>
         </div>
 

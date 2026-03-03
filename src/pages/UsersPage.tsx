@@ -8,7 +8,8 @@ import {
   deleteDoc, 
   doc, 
   query, 
-  where 
+  where,
+  serverTimestamp
 } from "firebase/firestore";
 import { 
   MoreVertical, 
@@ -40,11 +41,12 @@ export default function UsersPage() {
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [pendingUserToSwap, setPendingUserToSwap] = useState<User | null>(null);
   const [swapSearchTerm, setSwapSearchTerm] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
     name: "",
-    mac: "",
+    macAddress: "",
     status: UserStatus.PENDING,
     expiryDate: format(new Date(), "yyyy-MM-dd"),
     packageId: ""
@@ -72,15 +74,22 @@ export default function UsersPage() {
     e.preventDefault();
     try {
       if (editingUser) {
-        await updateDoc(doc(db, "users", editingUser.id), formData);
+        await updateDoc(doc(db, "users", editingUser.id), {
+          ...formData,
+          lastActive: serverTimestamp()
+        });
       } else {
-        await addDoc(collection(db, "users"), formData);
+        await addDoc(collection(db, "users"), {
+          ...formData,
+          createdAt: serverTimestamp(),
+          lastActive: serverTimestamp()
+        });
       }
       setIsModalOpen(false);
       setEditingUser(null);
       setFormData({
         name: "",
-        mac: "",
+        macAddress: "",
         status: UserStatus.PENDING,
         expiryDate: format(new Date(), "yyyy-MM-dd"),
         packageId: ""
@@ -90,9 +99,19 @@ export default function UsersPage() {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this user?")) {
-      await deleteDoc(doc(db, "users", id));
+  const handleDeleteUser = (id: string) => {
+    setDeleteConfirmId(id);
+    setActiveMenu(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    try {
+      await deleteDoc(doc(db, "users", deleteConfirmId));
+      setDeleteConfirmId(null);
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      alert("Failed to delete user. Please try again.");
     }
   };
 
@@ -104,11 +123,11 @@ export default function UsersPage() {
   const handleSwapMAC = async (targetUser: User) => {
     if (!pendingUserToSwap) return;
     
-    if (window.confirm(`Are you sure you want to swap MAC ${pendingUserToSwap.mac} to user ${targetUser.name}?`)) {
+    if (window.confirm(`Are you sure you want to swap MAC ${pendingUserToSwap.macAddress} to user ${targetUser.name}?`)) {
       try {
         // Update existing user with new MAC
         await updateDoc(doc(db, "users", targetUser.id), {
-          mac: pendingUserToSwap.mac
+          macAddress: pendingUserToSwap.macAddress
         });
         
         // Delete the pending request
@@ -125,15 +144,16 @@ export default function UsersPage() {
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.mac.toLowerCase().includes(searchTerm.toLowerCase())
+    (user.macAddress || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStatusColor = (status: UserStatus) => {
-    switch (status) {
-      case UserStatus.ACTIVE: return "text-emerald-600 bg-emerald-50 border-emerald-100";
-      case UserStatus.EXPIRED: return "text-rose-600 bg-rose-50 border-rose-100";
-      case UserStatus.PENDING: return "text-amber-600 bg-amber-50 border-amber-100";
-      case UserStatus.DENIED: return "text-slate-600 bg-slate-50 border-slate-100";
+  const getStatusColor = (status: string) => {
+    const s = status?.toUpperCase();
+    switch (s) {
+      case "ACTIVE": return "text-emerald-600 bg-emerald-50 border-emerald-100";
+      case "EXPIRED": return "text-rose-600 bg-rose-50 border-rose-100";
+      case "PENDING": return "text-amber-600 bg-amber-50 border-amber-100";
+      case "DENIED": return "text-slate-600 bg-slate-50 border-slate-100";
       default: return "text-slate-600 bg-slate-50 border-slate-100";
     }
   };
@@ -150,7 +170,7 @@ export default function UsersPage() {
             setEditingUser(null);
             setFormData({
               name: "",
-              mac: "",
+              macAddress: "",
               status: UserStatus.PENDING,
               expiryDate: format(new Date(), "yyyy-MM-dd"),
               packageId: ""
@@ -202,10 +222,13 @@ export default function UsersPage() {
                       <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
-                      <span className="font-semibold text-slate-900">{user.name}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-slate-900">{user.name}</span>
+                        <span className="text-[10px] font-mono text-indigo-600/60">{user.macAddress}</span>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 font-mono text-sm text-slate-600">{user.mac}</td>
+                  <td className="px-6 py-4 font-mono text-sm text-slate-600">{user.macAddress}</td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-3 py-1 rounded-full text-xs font-bold border",
@@ -215,7 +238,7 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">
-                    {format(new Date(user.expiryDate), "MMM dd, yyyy")}
+                    {user.expiryDate ? format(new Date(user.expiryDate), "MMM dd, yyyy") : "No Expiry"}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">
                     {packages.find(p => p.id === user.packageId)?.name || "N/A"}
@@ -248,6 +271,10 @@ export default function UsersPage() {
                             <div className="px-6 pb-4 mb-4 border-b border-slate-50">
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">User Actions</p>
                               <p className="text-base font-bold text-slate-900 truncate">{user.name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Device MAC:</span>
+                                <span className="text-xs font-mono font-bold text-indigo-600">{user.macAddress}</span>
+                              </div>
                             </div>
 
                             <div className="px-3 space-y-1">
@@ -288,9 +315,9 @@ export default function UsersPage() {
                                       setEditingUser(user);
                                       setFormData({
                                         name: user.name,
-                                        mac: user.mac,
+                                        macAddress: user.macAddress,
                                         status: user.status,
-                                        expiryDate: user.expiryDate,
+                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
                                         packageId: user.packageId
                                       });
                                       setIsModalOpen(true);
@@ -325,9 +352,9 @@ export default function UsersPage() {
                                       setEditingUser(user);
                                       setFormData({
                                         name: user.name,
-                                        mac: user.mac,
+                                        macAddress: user.macAddress,
                                         status: user.status,
-                                        expiryDate: user.expiryDate,
+                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
                                         packageId: user.packageId
                                       });
                                       setIsModalOpen(true);
@@ -362,9 +389,9 @@ export default function UsersPage() {
                                       setEditingUser(user);
                                       setFormData({
                                         name: user.name,
-                                        mac: user.mac,
+                                        macAddress: user.macAddress,
                                         status: user.status,
-                                        expiryDate: user.expiryDate,
+                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
                                         packageId: user.packageId
                                       });
                                       setIsModalOpen(true);
@@ -392,9 +419,9 @@ export default function UsersPage() {
                                       setEditingUser(user);
                                       setFormData({
                                         name: user.name,
-                                        mac: user.mac,
+                                        macAddress: user.macAddress,
                                         status: user.status,
-                                        expiryDate: user.expiryDate,
+                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
                                         packageId: user.packageId
                                       });
                                       setIsModalOpen(true);
@@ -479,11 +506,16 @@ export default function UsersPage() {
                   <input 
                     type="text" 
                     required
-                    value={formData.mac}
-                    onChange={(e) => setFormData({ ...formData, mac: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+                    disabled={!!editingUser}
+                    value={formData.macAddress}
+                    onChange={(e) => setFormData({ ...formData, macAddress: e.target.value })}
+                    className={cn(
+                      "w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono",
+                      editingUser && "bg-slate-50 text-slate-500 cursor-not-allowed"
+                    )}
                     placeholder="00:1A:2B:3C:4D:5E"
                   />
+                  {editingUser && <p className="text-[10px] text-slate-400 mt-1">MAC address cannot be changed after creation.</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -566,7 +598,7 @@ export default function UsersPage() {
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">Swap MAC Address</h3>
                   <p className="text-sm text-slate-500 mt-1">
-                    Select an existing user to receive MAC: <span className="font-mono font-bold text-indigo-600">{pendingUserToSwap?.mac}</span>
+                    Select an existing user to receive MAC: <span className="font-mono font-bold text-indigo-600">{pendingUserToSwap?.macAddress}</span>
                   </p>
                 </div>
                 <button onClick={() => setIsSwapModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
@@ -587,10 +619,10 @@ export default function UsersPage() {
 
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
                 {users
-                  .filter(u => u.status !== UserStatus.PENDING)
+                  .filter(u => u.status?.toUpperCase() !== "PENDING")
                   .filter(u => 
                     u.name.toLowerCase().includes(swapSearchTerm.toLowerCase()) || 
-                    u.mac.toLowerCase().includes(swapSearchTerm.toLowerCase())
+                    (u.macAddress || "").toLowerCase().includes(swapSearchTerm.toLowerCase())
                   )
                   .map(user => (
                     <button
@@ -600,7 +632,7 @@ export default function UsersPage() {
                     >
                       <div>
                         <p className="font-bold text-slate-900">{user.name}</p>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">Current MAC: {user.mac}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">Current MAC: {user.macAddress}</p>
                       </div>
                       <div className="flex flex-col items-end">
                         <span className={cn(
@@ -618,6 +650,47 @@ export default function UsersPage() {
                     No existing users available to swap.
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirmId && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteConfirmId(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-[32px] shadow-2xl p-8 text-center overflow-hidden"
+            >
+              <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 size={40} className="text-rose-500" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 mb-2">Delete User?</h3>
+              <p className="text-slate-500 mb-8">
+                Are you sure you want to delete this user? This action cannot be undone.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="py-4 rounded-2xl bg-rose-500 text-white font-bold hover:bg-rose-600 shadow-lg shadow-rose-200 transition-all active:scale-95"
+                >
+                  Delete
+                </button>
               </div>
             </motion.div>
           </div>
