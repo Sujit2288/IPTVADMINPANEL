@@ -16,9 +16,12 @@ import {
   X, 
   Search,
   ExternalLink,
-  Image as ImageIcon
+  Image as ImageIcon,
+  PlusCircle,
+  Shield,
+  Info
 } from "lucide-react";
-import { Channel, Category } from "../types";
+import { Channel, Category, ChannelSource } from "../types";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -33,10 +36,37 @@ export default function ChannelsPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
-    streamUrl: "",
+    sources: [{ name: "Server 1", url: "", type: "hls" as const, drm: { kid: "", key: "" } }],
     categoryId: "",
-    logoUrl: ""
+    logoUrl: "",
+    description: ""
   });
+
+  const addSource = () => {
+    setFormData({
+      ...formData,
+      sources: [...formData.sources, { name: `Server ${formData.sources.length + 1}`, url: "", type: "hls", drm: { kid: "", key: "" } }]
+    });
+  };
+
+  const removeSource = (index: number) => {
+    if (formData.sources.length <= 1) return;
+    const newSources = [...formData.sources];
+    newSources.splice(index, 1);
+    setFormData({ ...formData, sources: newSources });
+  };
+
+  const updateSource = (index: number, field: keyof ChannelSource | "drm_kid" | "drm_key", value: string) => {
+    const newSources = [...formData.sources];
+    if (field === "drm_kid") {
+      newSources[index] = { ...newSources[index], drm: { ...newSources[index].drm!, kid: value } };
+    } else if (field === "drm_key") {
+      newSources[index] = { ...newSources[index], drm: { ...newSources[index].drm!, key: value } };
+    } else {
+      newSources[index] = { ...newSources[index], [field]: value };
+    }
+    setFormData({ ...formData, sources: newSources });
+  };
 
   useEffect(() => {
     const unsubChannels = onSnapshot(collection(db, "channels"), (snapshot) => {
@@ -59,14 +89,34 @@ export default function ChannelsPage() {
   const handleSaveChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Clean up DRM if not provided
+      const cleanedSources = formData.sources.map(source => {
+        if (source.drm && (!source.drm.kid || !source.drm.key)) {
+          const { drm, ...rest } = source;
+          return rest;
+        }
+        return source;
+      });
+
+      const dataToSave = {
+        ...formData,
+        sources: cleanedSources
+      };
+
       if (editingChannel) {
-        await updateDoc(doc(db, "channels", editingChannel.id), formData);
+        await updateDoc(doc(db, "channels", editingChannel.id), dataToSave);
       } else {
-        await addDoc(collection(db, "channels"), formData);
+        await addDoc(collection(db, "channels"), dataToSave);
       }
       setIsModalOpen(false);
       setEditingChannel(null);
-      setFormData({ name: "", streamUrl: "", categoryId: "", logoUrl: "" });
+      setFormData({ 
+        name: "", 
+        sources: [{ name: "Server 1", url: "", type: "hls", drm: { kid: "", key: "" } }], 
+        categoryId: "", 
+        logoUrl: "",
+        description: ""
+      });
     } catch (err) {
       console.error("Error saving channel:", err);
     }
@@ -92,7 +142,13 @@ export default function ChannelsPage() {
         <button 
           onClick={() => {
             setEditingChannel(null);
-            setFormData({ name: "", streamUrl: "", categoryId: "", logoUrl: "" });
+            setFormData({ 
+              name: "", 
+              sources: [{ name: "Server 1", url: "", type: "hls", drm: { kid: "", key: "" } }], 
+              categoryId: "", 
+              logoUrl: "",
+              description: ""
+            });
             setIsModalOpen(true);
           }}
           className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
@@ -148,39 +204,47 @@ export default function ChannelsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-200/50">
-                <a 
-                  href={channel.streamUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
-                >
-                  <ExternalLink size={12} />
-                  STREAM LINK
-                </a>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => {
-                      setEditingChannel(channel);
-                      setFormData({
-                        name: channel.name,
-                        streamUrl: channel.streamUrl,
-                        categoryId: channel.categoryId,
-                        logoUrl: channel.logoUrl
-                      });
-                      setIsModalOpen(true);
-                    }}
-                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteChannel(channel.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+              <div className="mt-4 flex flex-col gap-2 pt-4 border-t border-slate-200/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {channel.sources?.length || 0} Sources
+                  </span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => {
+                        setEditingChannel(channel);
+                        setFormData({
+                          name: channel.name,
+                          sources: channel.sources || [{ name: "Server 1", url: "", type: "hls", drm: { kid: "", key: "" } }],
+                          categoryId: channel.categoryId,
+                          logoUrl: channel.logoUrl,
+                          description: channel.description || ""
+                        });
+                        setIsModalOpen(true);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteChannel(channel.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
+                {channel.sources?.[0] && (
+                  <a 
+                    href={channel.sources[0].url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink size={12} />
+                    PRIMARY: {channel.sources[0].name}
+                  </a>
+                )}
               </div>
             </motion.div>
           ))}
@@ -202,9 +266,9 @@ export default function ChannelsPage() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-8"
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-8 sticky top-0 bg-white z-10 pb-2">
                 <h3 className="text-xl font-bold text-slate-900">
                   {editingChannel ? "Edit Channel" : "Add New Channel"}
                 </h3>
@@ -213,43 +277,185 @@ export default function ChannelsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveChannel} className="space-y-5">
+              <form onSubmit={handleSaveChannel} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Channel Name</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      placeholder="e.g. HBO HD"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Category</label>
+                    <select 
+                      required
+                      value={formData.categoryId}
+                      onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    >
+                      <option value="">Select a category</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Channel Name</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Description</label>
+                  <textarea 
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    placeholder="e.g. HBO HD"
+                    placeholder="e.g. World, Qatar, etc."
+                    rows={2}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Stream URL (m3u8 / ts)</label>
-                  <input 
-                    type="url" 
-                    required
-                    value={formData.streamUrl}
-                    onChange={(e) => setFormData({ ...formData, streamUrl: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono text-sm"
-                    placeholder="http://server.com:8080/live/user/pass/1.m3u8"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Category</label>
-                  <select 
-                    required
-                    value={formData.categoryId}
-                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  >
-                    <option value="">Select a category</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Tv size={18} className="text-indigo-600" />
+                      Stream Sources
+                    </label>
+                    <button 
+                      type="button"
+                      onClick={addSource}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-3 py-1.5 bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      <PlusCircle size={14} />
+                      Add Server
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {formData.sources.map((source, index) => (
+                      <div key={index} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-4 relative">
+                        {formData.sources.length > 1 && (
+                          <button 
+                            type="button"
+                            onClick={() => removeSource(index)}
+                            className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Server Name</label>
+                            <input 
+                              type="text" 
+                              required
+                              value={source.name}
+                              onChange={(e) => updateSource(index, "name", e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                              placeholder="Server 1"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Stream URL</label>
+                            <input 
+                              type="url" 
+                              required
+                              value={source.url}
+                              onChange={(e) => updateSource(index, "url", e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                              placeholder="https://..."
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-6">
+                          <div className="flex items-center gap-3">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">Type:</label>
+                            <div className="flex bg-white rounded-lg p-1 border border-slate-200">
+                              <button 
+                                type="button"
+                                onClick={() => updateSource(index, "type", "hls")}
+                                className={cn(
+                                  "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
+                                  source.type === "hls" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+                                )}
+                              >
+                                HLS
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => updateSource(index, "type", "dash")}
+                                className={cn(
+                                  "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
+                                  source.type === "dash" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+                                )}
+                              >
+                                DASH
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">DRM Protection:</label>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (source.drm) {
+                                  const newSources = [...formData.sources];
+                                  const { drm, ...rest } = newSources[index];
+                                  newSources[index] = rest;
+                                  setFormData({ ...formData, sources: newSources });
+                                } else {
+                                  updateSource(index, "drm_kid", "");
+                                }
+                              }}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border",
+                                source.drm ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-white border-slate-200 text-slate-500"
+                              )}
+                            >
+                              <Shield size={12} />
+                              {source.drm ? "DRM ENABLED" : "DRM DISABLED"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {source.drm && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-200/50"
+                          >
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">DRM KID</label>
+                              <input 
+                                type="text" 
+                                value={source.drm.kid}
+                                onChange={(e) => updateSource(index, "drm_kid", e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="7995c724a13748ed970840a8ab5bb9b3"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">DRM KEY</label>
+                              <input 
+                                type="text" 
+                                value={source.drm.key}
+                                onChange={(e) => updateSource(index, "drm_key", e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="67bdaf1e2175b9ff682fcdf0e2354b1e"
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
                     ))}
-                  </select>
+                  </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Channel Logo URL</label>
                   <div className="flex gap-3">

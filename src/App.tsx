@@ -43,12 +43,13 @@ const SidebarItem: React.FC<{ to: string, icon: any, label: string, active: bool
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      logout(); // Clear session flag
       navigate("/login");
     } catch (err) {
       console.error("Logout failed:", err);

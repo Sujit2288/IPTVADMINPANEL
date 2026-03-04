@@ -5,12 +5,14 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { LogIn, ShieldCheck, AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
+import { useAuth } from "../lib/AuthContext";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -31,6 +33,7 @@ export default function LoginPage() {
           role: "admin"
         });
 
+        login(); // Set session flag
         navigate("/");
       } catch (err: any) {
         setError("System initialization failed. Please try again.");

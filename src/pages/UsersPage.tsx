@@ -42,6 +42,7 @@ export default function UsersPage() {
   const [pendingUserToSwap, setPendingUserToSwap] = useState<User | null>(null);
   const [swapSearchTerm, setSwapSearchTerm] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [rechargeUser, setRechargeUser] = useState<User | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -49,7 +50,8 @@ export default function UsersPage() {
     macAddress: "",
     status: UserStatus.PENDING,
     expiryDate: format(new Date(), "yyyy-MM-dd"),
-    packageId: ""
+    packageId: "",
+    packageName: ""
   });
 
   useEffect(() => {
@@ -92,7 +94,8 @@ export default function UsersPage() {
         macAddress: "",
         status: UserStatus.PENDING,
         expiryDate: format(new Date(), "yyyy-MM-dd"),
-        packageId: ""
+        packageId: "",
+        packageName: ""
       });
     } catch (err) {
       console.error("Error adding user:", err);
@@ -112,6 +115,29 @@ export default function UsersPage() {
     } catch (err) {
       console.error("Error deleting user:", err);
       alert("Failed to delete user. Please try again.");
+    }
+  };
+
+  const handleRecharge = async (user: User, pkg: Package) => {
+    try {
+      const currentExpiry = user.expiryDate ? new Date(user.expiryDate) : new Date();
+      const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+      const newExpiry = new Date(baseDate);
+      newExpiry.setDate(newExpiry.getDate() + pkg.validityDays);
+      
+      await updateDoc(doc(db, "users", user.id), {
+        packageId: pkg.id,
+        packageName: pkg.name,
+        expiryDate: format(newExpiry, "yyyy-MM-dd"),
+        status: UserStatus.ACTIVE,
+        lastActive: serverTimestamp()
+      });
+      
+      setRechargeUser(null);
+      setActiveMenu(null);
+    } catch (err) {
+      console.error("Error recharging user:", err);
+      alert("Failed to recharge user.");
     }
   };
 
@@ -241,7 +267,7 @@ export default function UsersPage() {
                     {user.expiryDate ? format(new Date(user.expiryDate), "MMM dd, yyyy") : "No Expiry"}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">
-                    {packages.find(p => p.id === user.packageId)?.name || "N/A"}
+                    {user.packageName || packages.find(p => p.id === user.packageId)?.name || "N/A"}
                   </td>
                   <td className="px-6 py-4 text-right relative">
                     <button 
@@ -281,6 +307,35 @@ export default function UsersPage() {
                               {user.status?.toUpperCase() === "PENDING" && (
                                 <>
                                   <button 
+                                    onClick={() => {
+                                      setEditingUser(user);
+                                      setFormData({
+                                        name: user.name,
+                                        macAddress: user.macAddress,
+                                        status: user.status,
+                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
+                                        packageId: user.packageId,
+                                        packageName: user.packageName || ""
+                                      });
+                                      setIsModalOpen(true);
+                                      setActiveMenu(null);
+                                    }}
+                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
+                                  >
+                                    <Edit2 size={18} />
+                                    Edit User
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setRechargeUser(user);
+                                      setActiveMenu(null);
+                                    }}
+                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
+                                  >
+                                    <RefreshCw size={18} />
+                                    Recharge User
+                                  </button>
+                                  <button 
                                     onClick={() => handleStatusChange(user.id, UserStatus.ACTIVE)}
                                     className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 w-full text-left rounded-2xl transition-colors"
                                   >
@@ -318,7 +373,8 @@ export default function UsersPage() {
                                         macAddress: user.macAddress,
                                         status: user.status,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId
+                                        packageId: user.packageId,
+                                        packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
                                       setActiveMenu(null);
@@ -329,7 +385,10 @@ export default function UsersPage() {
                                     Edit User
                                   </button>
                                   <button 
-                                    onClick={() => handleStatusChange(user.id, UserStatus.ACTIVE)}
+                                    onClick={() => {
+                                      setRechargeUser(user);
+                                      setActiveMenu(null);
+                                    }}
                                     className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
                                   >
                                     <RefreshCw size={18} />
@@ -355,7 +414,8 @@ export default function UsersPage() {
                                         macAddress: user.macAddress,
                                         status: user.status,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId
+                                        packageId: user.packageId,
+                                        packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
                                       setActiveMenu(null);
@@ -364,6 +424,16 @@ export default function UsersPage() {
                                   >
                                     <Edit2 size={18} />
                                     Edit User
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setRechargeUser(user);
+                                      setActiveMenu(null);
+                                    }}
+                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
+                                  >
+                                    <RefreshCw size={18} />
+                                    Recharge User
                                   </button>
                                   <button 
                                     onClick={() => handleStatusChange(user.id, UserStatus.DENIED)}
@@ -392,7 +462,8 @@ export default function UsersPage() {
                                         macAddress: user.macAddress,
                                         status: user.status,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId
+                                        packageId: user.packageId,
+                                        packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
                                       setActiveMenu(null);
@@ -422,7 +493,8 @@ export default function UsersPage() {
                                         macAddress: user.macAddress,
                                         status: user.status,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId
+                                        packageId: user.packageId,
+                                        packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
                                       setActiveMenu(null);
@@ -546,7 +618,14 @@ export default function UsersPage() {
                   <select 
                     required
                     value={formData.packageId}
-                    onChange={(e) => setFormData({ ...formData, packageId: e.target.value })}
+                    onChange={(e) => {
+                      const pkg = packages.find(p => p.id === e.target.value);
+                      setFormData({ 
+                        ...formData, 
+                        packageId: e.target.value,
+                        packageName: pkg ? pkg.name : "" 
+                      });
+                    }}
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   >
                     <option value="">Select a package</option>
@@ -648,6 +727,61 @@ export default function UsersPage() {
                 {users.filter(u => u.status !== UserStatus.PENDING).length === 0 && (
                   <div className="text-center py-8 text-slate-400">
                     No existing users available to swap.
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Recharge Modal */}
+        {rechargeUser && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              onClick={() => setRechargeUser(null)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-8 flex flex-col max-h-[80vh]"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Recharge User</h3>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Select a package to recharge <span className="font-bold text-indigo-600">{rechargeUser.name}</span>
+                  </p>
+                </div>
+                <button onClick={() => setRechargeUser(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                {packages.map(pkg => (
+                  <button
+                    key={pkg.id}
+                    onClick={() => handleRecharge(rechargeUser, pkg)}
+                    className="w-full flex items-center justify-between p-5 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all text-left group"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-900 text-lg">{pkg.name}</p>
+                      <p className="text-sm text-slate-500 mt-1">Validity: {pkg.validityDays} Days</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-black text-indigo-600">${pkg.price}</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Select Package</p>
+                    </div>
+                  </button>
+                ))}
+                {packages.length === 0 && (
+                  <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                    <p className="text-slate-400">No packages available.</p>
                   </div>
                 )}
               </div>

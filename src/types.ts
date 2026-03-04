@@ -23,12 +23,23 @@ export interface Package {
   channelIds: string[];
 }
 
+export interface ChannelSource {
+  name: string;
+  url: string;
+  type: "hls" | "dash";
+  drm?: {
+    kid: string;
+    key: string;
+  };
+}
+
 export interface Channel {
   id: string;
   name: string;
-  streamUrl: string;
+  sources: ChannelSource[];
   categoryId: string;
   logoUrl: string;
+  description?: string;
 }
 
 export interface Category {
