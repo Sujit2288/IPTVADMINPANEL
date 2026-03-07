@@ -36,7 +36,7 @@ export default function ChannelsPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
-    sources: [{ name: "Server 1", url: "", type: "hls" as const, drm: { kid: "", key: "" } }],
+    sources: [{ name: "Server 1", url: "", type: "hls" as "hls" | "dash", drm: { kid: "", key: "" } }] as ChannelSource[],
     categoryId: "",
     logoUrl: "",
     description: ""
@@ -57,13 +57,13 @@ export default function ChannelsPage() {
   };
 
   const updateSource = (index: number, field: keyof ChannelSource | "drm_kid" | "drm_key", value: string) => {
-    const newSources = [...formData.sources];
+    const newSources = [...formData.sources] as ChannelSource[];
     if (field === "drm_kid") {
-      newSources[index] = { ...newSources[index], drm: { ...newSources[index].drm!, kid: value } };
+      newSources[index] = { ...newSources[index], drm: { kid: value, key: newSources[index].drm?.key || "" } };
     } else if (field === "drm_key") {
-      newSources[index] = { ...newSources[index], drm: { ...newSources[index].drm!, key: value } };
+      newSources[index] = { ...newSources[index], drm: { kid: newSources[index].drm?.kid || "", key: value } };
     } else {
-      newSources[index] = { ...newSources[index], [field]: value };
+      newSources[index] = { ...newSources[index], [field]: value } as ChannelSource;
     }
     setFormData({ ...formData, sources: newSources });
   };
@@ -129,7 +129,7 @@ export default function ChannelsPage() {
   };
 
   const filteredChannels = channels.filter(channel => 
-    channel.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (channel.name || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -403,14 +403,14 @@ export default function ChannelsPage() {
                             <button 
                               type="button"
                               onClick={() => {
-                                if (source.drm) {
-                                  const newSources = [...formData.sources];
+                                const newSources = [...formData.sources] as ChannelSource[];
+                                if (newSources[index].drm) {
                                   const { drm, ...rest } = newSources[index];
-                                  newSources[index] = rest;
-                                  setFormData({ ...formData, sources: newSources });
+                                  newSources[index] = rest as ChannelSource;
                                 } else {
-                                  updateSource(index, "drm_kid", "");
+                                  newSources[index] = { ...newSources[index], drm: { kid: "", key: "" } };
                                 }
+                                setFormData({ ...formData, sources: newSources });
                               }}
                               className={cn(
                                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border",

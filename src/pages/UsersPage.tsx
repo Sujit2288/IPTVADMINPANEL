@@ -121,7 +121,13 @@ export default function UsersPage() {
   const handleRecharge = async (user: User, pkg: Package) => {
     try {
       const currentExpiry = user.expiryDate ? new Date(user.expiryDate) : new Date();
-      const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+      let baseDate = new Date();
+      
+      // If current expiry is valid and in the future, extend from there
+      if (!isNaN(currentExpiry.getTime()) && currentExpiry > new Date()) {
+        baseDate = currentExpiry;
+      }
+      
       const newExpiry = new Date(baseDate);
       newExpiry.setDate(newExpiry.getDate() + pkg.validityDays);
       
@@ -169,7 +175,7 @@ export default function UsersPage() {
   };
 
   const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.macAddress || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -199,7 +205,8 @@ export default function UsersPage() {
               macAddress: "",
               status: UserStatus.PENDING,
               expiryDate: format(new Date(), "yyyy-MM-dd"),
-              packageId: ""
+              packageId: "",
+              packageName: ""
             });
             setIsModalOpen(true);
           }}
@@ -246,7 +253,7 @@ export default function UsersPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
-                        {user.name.charAt(0).toUpperCase()}
+                        {(user.name || "U").charAt(0).toUpperCase()}
                       </div>
                       <div className="flex flex-col">
                         <span className="font-semibold text-slate-900">{user.name}</span>
@@ -264,7 +271,16 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">
-                    {user.expiryDate ? format(new Date(user.expiryDate), "MMM dd, yyyy") : "No Expiry"}
+                    {(() => {
+                      if (!user.expiryDate) return "No Expiry";
+                      try {
+                        const date = new Date(user.expiryDate);
+                        if (isNaN(date.getTime())) return "Invalid Date";
+                        return format(date, "MMM dd, yyyy");
+                      } catch (e) {
+                        return "Invalid Date";
+                      }
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">
                     {user.packageName || packages.find(p => p.id === user.packageId)?.name || "N/A"}
@@ -310,11 +326,11 @@ export default function UsersPage() {
                                     onClick={() => {
                                       setEditingUser(user);
                                       setFormData({
-                                        name: user.name,
-                                        macAddress: user.macAddress,
-                                        status: user.status,
+                                        name: user.name || "",
+                                        macAddress: user.macAddress || "",
+                                        status: user.status || UserStatus.PENDING,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId,
+                                        packageId: user.packageId || "",
                                         packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
@@ -369,11 +385,11 @@ export default function UsersPage() {
                                     onClick={() => {
                                       setEditingUser(user);
                                       setFormData({
-                                        name: user.name,
-                                        macAddress: user.macAddress,
-                                        status: user.status,
+                                        name: user.name || "",
+                                        macAddress: user.macAddress || "",
+                                        status: user.status || UserStatus.PENDING,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId,
+                                        packageId: user.packageId || "",
                                         packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
@@ -410,11 +426,11 @@ export default function UsersPage() {
                                     onClick={() => {
                                       setEditingUser(user);
                                       setFormData({
-                                        name: user.name,
-                                        macAddress: user.macAddress,
-                                        status: user.status,
+                                        name: user.name || "",
+                                        macAddress: user.macAddress || "",
+                                        status: user.status || UserStatus.PENDING,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId,
+                                        packageId: user.packageId || "",
                                         packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
@@ -458,11 +474,11 @@ export default function UsersPage() {
                                     onClick={() => {
                                       setEditingUser(user);
                                       setFormData({
-                                        name: user.name,
-                                        macAddress: user.macAddress,
-                                        status: user.status,
+                                        name: user.name || "",
+                                        macAddress: user.macAddress || "",
+                                        status: user.status || UserStatus.PENDING,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId,
+                                        packageId: user.packageId || "",
                                         packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
@@ -489,11 +505,11 @@ export default function UsersPage() {
                                     onClick={() => {
                                       setEditingUser(user);
                                       setFormData({
-                                        name: user.name,
-                                        macAddress: user.macAddress,
-                                        status: user.status,
+                                        name: user.name || "",
+                                        macAddress: user.macAddress || "",
+                                        status: user.status || UserStatus.PENDING,
                                         expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId,
+                                        packageId: user.packageId || "",
                                         packageName: user.packageName || ""
                                       });
                                       setIsModalOpen(true);
@@ -700,7 +716,7 @@ export default function UsersPage() {
                 {users
                   .filter(u => u.status?.toUpperCase() !== "PENDING")
                   .filter(u => 
-                    u.name.toLowerCase().includes(swapSearchTerm.toLowerCase()) || 
+                    (u.name || "").toLowerCase().includes(swapSearchTerm.toLowerCase()) || 
                     (u.macAddress || "").toLowerCase().includes(swapSearchTerm.toLowerCase())
                   )
                   .map(user => (

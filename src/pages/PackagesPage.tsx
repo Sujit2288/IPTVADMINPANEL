@@ -266,7 +266,7 @@ export default function PackagesPage() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 border border-slate-100 rounded-xl">
                     {channels
-                      .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      .filter(c => (c.name || "").toLowerCase().includes(searchTerm.toLowerCase()))
                       .map(channel => (
                         <button
                           key={channel.id}

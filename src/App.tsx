@@ -23,6 +23,7 @@ import PackagesPage from "./pages/PackagesPage";
 import ChannelsPage from "./pages/ChannelsPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import LoginPage from "./pages/LoginPage";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const SidebarItem: React.FC<{ to: string, icon: any, label: string, active: boolean }> = ({ to, icon: Icon, label, active }) => (
   <Link
@@ -171,15 +172,17 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
-          <Route path="/packages" element={<ProtectedRoute><PackagesPage /></ProtectedRoute>} />
-          <Route path="/channels" element={<ProtectedRoute><ChannelsPage /></ProtectedRoute>} />
-          <Route path="/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+            <Route path="/packages" element={<ProtectedRoute><PackagesPage /></ProtectedRoute>} />
+            <Route path="/channels" element={<ProtectedRoute><ChannelsPage /></ProtectedRoute>} />
+            <Route path="/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </ErrorBoundary>
       </Router>
     </AuthProvider>
   );

@@ -66,7 +66,7 @@ export default function CategoriesPage() {
   };
 
   const filteredCategories = categories.filter(category => 
-    category.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (category.name || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
