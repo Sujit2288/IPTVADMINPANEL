@@ -36,6 +36,7 @@ export interface ChannelSource {
 export interface Channel {
   id: string;
   name: string;
+  channelNumber: number;
   sources: ChannelSource[];
   categoryId: string;
   logoUrl: string;

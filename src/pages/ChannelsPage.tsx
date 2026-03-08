@@ -36,6 +36,7 @@ export default function ChannelsPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
+    channelNumber: 1,
     sources: [{ name: "Server 1", url: "", type: "hls" as "hls" | "dash", drm: { kid: "", key: "" } }] as ChannelSource[],
     categoryId: "",
     logoUrl: "",
@@ -112,6 +113,7 @@ export default function ChannelsPage() {
       setEditingChannel(null);
       setFormData({ 
         name: "", 
+        channelNumber: 1,
         sources: [{ name: "Server 1", url: "", type: "hls", drm: { kid: "", key: "" } }], 
         categoryId: "", 
         logoUrl: "",
@@ -128,9 +130,11 @@ export default function ChannelsPage() {
     }
   };
 
-  const filteredChannels = channels.filter(channel => 
-    (channel.name || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredChannels = channels
+    .filter(channel => 
+      (channel.name || "").toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => (a.channelNumber || 0) - (b.channelNumber || 0));
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -141,9 +145,13 @@ export default function ChannelsPage() {
         </div>
         <button 
           onClick={() => {
+            const nextNumber = channels.length > 0 
+              ? Math.max(...channels.map(c => c.channelNumber || 0)) + 1 
+              : 1;
             setEditingChannel(null);
             setFormData({ 
               name: "", 
+              channelNumber: nextNumber,
               sources: [{ name: "Server 1", url: "", type: "hls", drm: { kid: "", key: "" } }], 
               categoryId: "", 
               logoUrl: "",
@@ -181,7 +189,10 @@ export default function ChannelsPage() {
               className="group relative bg-slate-50 rounded-2xl p-4 border border-slate-100 hover:bg-white hover:shadow-lg hover:shadow-slate-100 transition-all"
             >
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-white rounded-xl border border-slate-100 overflow-hidden flex items-center justify-center shadow-sm">
+                <div className="w-14 h-14 bg-white rounded-xl border border-slate-100 overflow-hidden flex items-center justify-center shadow-sm relative">
+                  <div className="absolute top-0 left-0 bg-indigo-600 text-white text-[8px] font-bold px-1 rounded-br-lg z-10">
+                    #{channel.channelNumber}
+                  </div>
                   {channel.logoUrl ? (
                     <img 
                       src={channel.logoUrl} 
@@ -215,6 +226,7 @@ export default function ChannelsPage() {
                         setEditingChannel(channel);
                         setFormData({
                           name: channel.name,
+                          channelNumber: channel.channelNumber || 1,
                           sources: channel.sources || [{ name: "Server 1", url: "", type: "hls", drm: { kid: "", key: "" } }],
                           categoryId: channel.categoryId,
                           logoUrl: channel.logoUrl,
@@ -278,8 +290,8 @@ export default function ChannelsPage() {
               </div>
 
               <form onSubmit={handleSaveChannel} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Channel Name</label>
                     <input 
                       type="text" 
@@ -290,6 +302,19 @@ export default function ChannelsPage() {
                       placeholder="e.g. HBO HD"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Channel No.</label>
+                    <input 
+                      type="number" 
+                      required
+                      value={formData.channelNumber}
+                      onChange={(e) => setFormData({ ...formData, channelNumber: Number(e.target.value) })}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      placeholder="1"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Category</label>
                     <select 
