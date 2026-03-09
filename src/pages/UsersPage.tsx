@@ -72,6 +72,50 @@ export default function UsersPage() {
     };
   }, []);
 
+  // Automatic Expiry Check
+  useEffect(() => {
+    const checkExpiries = async () => {
+      const now = new Date();
+      // Set time to midnight for accurate date comparison
+      now.setHours(0, 0, 0, 0);
+      
+      const expiredUsers = users.filter(user => {
+        if (!user.expiryDate || user.status === UserStatus.EXPIRED || user.status === UserStatus.PENDING) return false;
+        const expiry = new Date(user.expiryDate);
+        expiry.setHours(0, 0, 0, 0);
+        return !isNaN(expiry.getTime()) && expiry < now;
+      });
+
+      for (const user of expiredUsers) {
+        try {
+          await updateDoc(doc(db, "users", user.id), {
+            status: UserStatus.EXPIRED
+          });
+        } catch (err) {
+          console.error("Error updating expired user:", err);
+        }
+      }
+    };
+
+    if (users.length > 0) {
+      checkExpiries();
+    }
+  }, [users]);
+
+  const calculateNewExpiry = (user: User, pkg: Package) => {
+    const currentExpiry = user.expiryDate ? new Date(user.expiryDate) : new Date();
+    let baseDate = new Date();
+    
+    // If current expiry is valid and in the future, extend from there
+    if (!isNaN(currentExpiry.getTime()) && currentExpiry > new Date()) {
+      baseDate = currentExpiry;
+    }
+    
+    const newExpiry = new Date(baseDate);
+    newExpiry.setDate(newExpiry.getDate() + pkg.validityDays);
+    return newExpiry;
+  };
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -120,16 +164,7 @@ export default function UsersPage() {
 
   const handleRecharge = async (user: User, pkg: Package) => {
     try {
-      const currentExpiry = user.expiryDate ? new Date(user.expiryDate) : new Date();
-      let baseDate = new Date();
-      
-      // If current expiry is valid and in the future, extend from there
-      if (!isNaN(currentExpiry.getTime()) && currentExpiry > new Date()) {
-        baseDate = currentExpiry;
-      }
-      
-      const newExpiry = new Date(baseDate);
-      newExpiry.setDate(newExpiry.getDate() + pkg.validityDays);
+      const newExpiry = calculateNewExpiry(user, pkg);
       
       await updateDoc(doc(db, "users", user.id), {
         packageId: pkg.id,
@@ -779,22 +814,29 @@ export default function UsersPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                {packages.map(pkg => (
-                  <button
-                    key={pkg.id}
-                    onClick={() => handleRecharge(rechargeUser, pkg)}
-                    className="w-full flex items-center justify-between p-5 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all text-left group"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-900 text-lg">{pkg.name}</p>
-                      <p className="text-sm text-slate-500 mt-1">Validity: {pkg.validityDays} Days</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-black text-indigo-600">${pkg.price}</p>
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Select Package</p>
-                    </div>
-                  </button>
-                ))}
+                {packages.map(pkg => {
+                  const newExpiry = calculateNewExpiry(rechargeUser, pkg);
+                  return (
+                    <button
+                      key={pkg.id}
+                      onClick={() => handleRecharge(rechargeUser, pkg)}
+                      className="w-full flex items-center justify-between p-5 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all text-left group"
+                    >
+                      <div className="flex-1">
+                        <p className="font-bold text-slate-900 text-lg">{pkg.name}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <p className="text-sm text-slate-500">Validity: {pkg.validityDays} Days</p>
+                          <span className="w-1 h-1 rounded-full bg-slate-300" />
+                          <p className="text-sm text-indigo-600 font-medium">New Expiry: {format(newExpiry, "MMM dd, yyyy")}</p>
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-xl font-black text-indigo-600">${pkg.price}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Select Package</p>
+                      </div>
+                    </button>
+                  );
+                })}
                 {packages.length === 0 && (
                   <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
                     <p className="text-slate-400">No packages available.</p>
