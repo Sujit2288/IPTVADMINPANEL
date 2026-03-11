@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import { collection, onSnapshot, query, where, updateDoc, doc } from "firebase/firestore";
 import { 
   Users, 
@@ -54,9 +54,14 @@ export default function Dashboard() {
   });
 
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState({
+    db: "CONNECTING",
+    auth: "CONNECTING"
+  });
 
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+      setConnectionStatus(prev => ({ ...prev, db: "ONLINE" }));
       const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       
       // Automatic Expiry Check
@@ -93,20 +98,32 @@ export default function Dashboard() {
         new Date(b.expiryDate).getTime() - new Date(a.expiryDate).getTime()
       ).slice(0, 3);
       setRecentUsers(sorted);
+    }, (err) => {
+      console.error("Dashboard users fetch error:", err);
+      setConnectionStatus(prev => ({ ...prev, db: "ERROR" }));
+    });
+
+    const unsubAuth = auth.onAuthStateChanged((user) => {
+      setConnectionStatus(prev => ({ ...prev, auth: user ? "ONLINE" : "OFFLINE" }));
     });
 
     const unsubPackages = onSnapshot(collection(db, "packages"), (snapshot) => {
       setStats(prev => ({ ...prev, totalPackages: snapshot.size }));
+    }, (err) => {
+      console.error("Dashboard packages fetch error:", err);
     });
 
     const unsubChannels = onSnapshot(collection(db, "channels"), (snapshot) => {
       setStats(prev => ({ ...prev, totalChannels: snapshot.size }));
+    }, (err) => {
+      console.error("Dashboard channels fetch error:", err);
     });
 
     return () => {
       unsubUsers();
       unsubPackages();
       unsubChannels();
+      unsubAuth();
     };
   }, []);
 
@@ -199,25 +216,38 @@ export default function Dashboard() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className={cn(
+                  "w-2 h-2 rounded-full animate-pulse",
+                  connectionStatus.db === "ONLINE" ? "bg-emerald-500" : 
+                  connectionStatus.db === "ERROR" ? "bg-rose-500" : "bg-amber-500"
+                )} />
                 <span className="text-sm font-medium text-slate-700">Database Connection</span>
               </div>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">ONLINE</span>
+              <span className={cn(
+                "text-xs font-bold px-2 py-1 rounded-lg",
+                connectionStatus.db === "ONLINE" ? "text-emerald-600 bg-emerald-50" : 
+                connectionStatus.db === "ERROR" ? "text-rose-600 bg-rose-50" : "text-amber-600 bg-amber-50"
+              )}>{connectionStatus.db}</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-sm font-medium text-slate-700">Streaming Server</span>
-              </div>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">ONLINE</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className={cn(
+                  "w-2 h-2 rounded-full animate-pulse",
+                  connectionStatus.auth === "ONLINE" ? "bg-emerald-500" : "bg-amber-500"
+                )} />
                 <span className="text-sm font-medium text-slate-700">Auth Service</span>
               </div>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">ONLINE</span>
+              <span className={cn(
+                "text-xs font-bold px-2 py-1 rounded-lg",
+                connectionStatus.auth === "ONLINE" ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50"
+              )}>{connectionStatus.auth}</span>
             </div>
+            {connectionStatus.db === "ERROR" && (
+              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-[10px] text-rose-600 leading-relaxed">
+                <p className="font-bold mb-1">Connection Error Detected</p>
+                <p>If you are using a new device or URL, make sure to add this domain to your Firebase Authorized Domains list.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

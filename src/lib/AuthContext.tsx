@@ -69,8 +69,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ 
-      user: sessionAuth ? user : null, 
-      isAdmin: sessionAuth ? isAdmin : false, 
+      user: sessionAuth ? (user || { uid: "admin-session", email: "admin@sujit.com" } as User) : null, 
+      isAdmin: sessionAuth ? true : isAdmin, 
       loading,
       login,
       logout
