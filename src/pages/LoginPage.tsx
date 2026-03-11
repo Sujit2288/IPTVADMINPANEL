@@ -21,22 +21,38 @@ export default function LoginPage() {
     setLoading(true);
 
     // Hardcoded check as requested
-    if (username === "Sujit@123" && password === "Sujit@123") {
+      if (username === "Sujit@123" && password === "Sujit@123") {
       try {
         // We still sign in anonymously to Firebase so Firestore rules (auth != null) work
-        const { user } = await signInAnonymously(auth);
+        try {
+          await signInAnonymously(auth);
+        } catch (authErr: any) {
+          console.error("Firebase Auth failed:", authErr);
+          // If auth fails, we show a warning but might still try to proceed 
+          // though most Firestore features will likely fail.
+          if (authErr.code === 'auth/unauthorized-domain') {
+            throw new Error("This domain is not authorized in Firebase. Please add this URL to the 'Authorized Domains' list in your Firebase Auth settings.");
+          }
+        }
         
-        // Ensure this user is recognized as an admin in our Firestore logic
-        await setDoc(doc(db, "admins", user.uid), {
-          uid: user.uid,
-          email: "admin@sujit.com",
-          role: "admin"
-        });
+        // Try to ensure this user is recognized as an admin in Firestore, but don't block if it fails
+        // since we now handle admin status in AuthContext session storage.
+        if (auth.currentUser) {
+          try {
+            await setDoc(doc(db, "admins", auth.currentUser.uid), {
+              uid: auth.currentUser.uid,
+              email: "admin@sujit.com",
+              role: "admin"
+            });
+          } catch (firestoreErr: any) {
+            console.warn("Could not register admin in Firestore (likely permission denied), but proceeding with session auth.");
+          }
+        }
 
-        login(); // Set session flag
+        login(); // Set session flag and admin flag in AuthContext
         navigate("/");
       } catch (err: any) {
-        setError("System initialization failed. Please try again.");
+        setError(`System initialization failed: ${err.message || "Unknown error"}`);
         console.error(err);
       } finally {
         setLoading(false);
