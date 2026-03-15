@@ -30,21 +30,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Check session storage for authentication
     const isAuth = sessionStorage.getItem("admin_auth") === "true";
-    const isStoredAdmin = sessionStorage.getItem("is_admin") === "true";
     setSessionAuth(isAuth);
-    if (isStoredAdmin) setIsAdmin(true);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      if (firebaseUser && !isStoredAdmin) {
+      if (firebaseUser) {
         // Check if user is admin in Firestore
-        try {
-          const adminDoc = await getDoc(doc(db, "admins", firebaseUser.uid));
-          setIsAdmin(adminDoc.exists());
-        } catch (err) {
-          console.error("Error checking admin status:", err);
-        }
-      } else if (!firebaseUser && !isStoredAdmin) {
+        const adminDoc = await getDoc(doc(db, "admins", firebaseUser.uid));
+        setIsAdmin(adminDoc.exists());
+      } else {
         setIsAdmin(false);
       }
       setLoading(false);
@@ -55,22 +49,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = () => {
     sessionStorage.setItem("admin_auth", "true");
-    sessionStorage.setItem("is_admin", "true");
     setSessionAuth(true);
-    setIsAdmin(true);
   };
 
   const logout = () => {
     sessionStorage.removeItem("admin_auth");
-    sessionStorage.removeItem("is_admin");
     setSessionAuth(false);
-    setIsAdmin(false);
   };
 
   return (
     <AuthContext.Provider value={{ 
-      user: sessionAuth ? (user || { uid: "admin-session", email: "admin@sujit.com" } as User) : null, 
-      isAdmin: sessionAuth ? true : isAdmin, 
+      user: sessionAuth ? user : null, 
+      isAdmin: sessionAuth ? isAdmin : false, 
       loading,
       login,
       logout

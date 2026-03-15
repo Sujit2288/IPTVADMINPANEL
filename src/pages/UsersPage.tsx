@@ -17,7 +17,6 @@ import {
   Search, 
   Filter, 
   UserPlus, 
-  Users,
   Trash2, 
   Edit2, 
   Ban, 
@@ -35,9 +34,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isAddingSample, setIsAddingSample] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -62,22 +59,11 @@ export default function UsersPage() {
       const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
       setUsers(usersData);
       setLoading(false);
-      setError(null);
-    }, (err) => {
-      console.error("Users fetch error:", err);
-      setLoading(false);
-      if (err.code === 'permission-denied') {
-        setError("Permission Denied: You don't have access to view users. Please ensure your admin account is properly set up.");
-      } else {
-        setError("Failed to connect to database. Please check your internet connection.");
-      }
     });
 
     const unsubPackages = onSnapshot(collection(db, "packages"), (snapshot) => {
       const packagesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Package));
       setPackages(packagesData);
-    }, (err) => {
-      console.error("Packages fetch error:", err);
     });
 
     return () => {
@@ -157,26 +143,6 @@ export default function UsersPage() {
       });
     } catch (err) {
       console.error("Error adding user:", err);
-    }
-  };
-
-  const handleAddSampleUser = async () => {
-    setIsAddingSample(true);
-    try {
-      await addDoc(collection(db, "users"), {
-        name: "Sample User",
-        macAddress: "00:11:22:33:44:55",
-        status: UserStatus.ACTIVE,
-        expiryDate: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
-        packageId: packages[0]?.id || "sample-package",
-        packageName: packages[0]?.name || "Sample Package",
-        createdAt: new Date().toISOString()
-      });
-    } catch (err) {
-      console.error("Error adding sample user:", err);
-      alert("Failed to add sample user. Check console for details.");
-    } finally {
-      setIsAddingSample(false);
     }
   };
 
@@ -287,15 +253,6 @@ export default function UsersPage() {
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        {error && (
-          <div className="p-6 bg-rose-50 border-b border-rose-100 flex items-center gap-3 text-rose-600">
-            <Ban size={20} />
-            <div className="text-sm">
-              <p className="font-bold">Database Error</p>
-              <p>{error}</p>
-            </div>
-          </div>
-        )}
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -624,36 +581,6 @@ export default function UsersPage() {
                   </td>
                 </tr>
               ))}
-              {filteredUsers.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
-                        <Users size={32} />
-                      </div>
-                      <div className="max-w-xs mx-auto">
-                        <p className="text-slate-900 font-bold">No users found</p>
-                        <p className="text-slate-500 text-xs mt-1">Try adjusting your search or add a new user to get started.</p>
-                      </div>
-                      <div className="flex gap-3">
-                        <button 
-                          onClick={() => setIsModalOpen(true)}
-                          className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors"
-                        >
-                          Add User
-                        </button>
-                        <button 
-                          onClick={handleAddSampleUser}
-                          disabled={isAddingSample}
-                          className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
-                        >
-                          {isAddingSample ? "Adding..." : "Add Sample User"}
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
