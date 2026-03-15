@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../lib/firebase";
-import { collection, onSnapshot, query, where, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { 
   Users, 
   Package, 
@@ -14,8 +14,6 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { UserStatus } from "../types";
-
-import { cn } from "../lib/utils";
 
 const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
   <motion.div 
@@ -41,6 +39,8 @@ const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
   </motion.div>
 );
 
+import { cn } from "../lib/utils";
+
 export default function Dashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -57,28 +57,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      
-      // Automatic Expiry Check
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      
-      users.forEach(async (user) => {
-        if (user.expiryDate && user.status !== UserStatus.EXPIRED && user.status !== UserStatus.PENDING) {
-          const expiry = new Date(user.expiryDate);
-          expiry.setHours(0, 0, 0, 0);
-          if (!isNaN(expiry.getTime()) && expiry < now) {
-            try {
-              await updateDoc(doc(db, "users", user.id), {
-                status: UserStatus.EXPIRED
-              });
-            } catch (err) {
-              console.error("Error updating expired user in dashboard:", err);
-            }
-          }
-        }
-      });
-
+      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setStats(prev => ({
         ...prev,
         totalUsers: snapshot.size,
