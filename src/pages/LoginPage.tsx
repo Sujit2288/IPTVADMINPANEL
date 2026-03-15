@@ -36,7 +36,7 @@ export default function LoginPage() {
         login(username); // Set session flag and store name
         navigate("/");
       } catch (err: any) {
-        setError("System initialization failed. Please try again.");
+        setError(`System initialization failed: ${err.message || "Unknown error"}`);
         console.error(err);
       } finally {
         setLoading(false);

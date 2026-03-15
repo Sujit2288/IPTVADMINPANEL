@@ -54,9 +54,11 @@ export default function Dashboard() {
   });
 
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
+  const [dbStatus, setDbStatus] = useState<"ONLINE" | "OFFLINE" | "LOADING">("LOADING");
 
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+      setDbStatus("ONLINE");
       const users = snapshot.docs.map(doc => {
         try {
           return { id: doc.id, ...doc.data() } as any;
@@ -84,6 +86,7 @@ export default function Dashboard() {
       setRecentUsers(sorted);
     }, (error) => {
       console.error("Error fetching users for dashboard:", error);
+      setDbStatus("OFFLINE");
     });
 
     const unsubPackages = onSnapshot(collection(db, "packages"), (snapshot) => {
@@ -201,10 +204,20 @@ export default function Dashboard() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  dbStatus === "ONLINE" ? "bg-emerald-500 animate-pulse" : 
+                  dbStatus === "OFFLINE" ? "bg-rose-500" : "bg-slate-300"
+                )} />
                 <span className="text-sm font-medium text-slate-700">Database Connection</span>
               </div>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">ONLINE</span>
+              <span className={cn(
+                "text-xs font-bold px-2 py-1 rounded-lg",
+                dbStatus === "ONLINE" ? "text-emerald-600 bg-emerald-50" : 
+                dbStatus === "OFFLINE" ? "text-rose-600 bg-rose-50" : "text-slate-600 bg-slate-50"
+              )}>
+                {dbStatus}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

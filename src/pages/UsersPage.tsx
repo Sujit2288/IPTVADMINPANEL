@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { db } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
 import { 
   collection, 
   onSnapshot, 
@@ -24,7 +24,8 @@ import {
   CheckCircle2, 
   RefreshCw,
   X,
-  ArrowLeftRight
+  ArrowLeftRight,
+  ShieldCheck
 } from "lucide-react";
 import { User, UserStatus, Package } from "../types";
 import { cn } from "../lib/utils";
@@ -35,6 +36,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -44,6 +46,8 @@ export default function UsersPage() {
   const [swapSearchTerm, setSwapSearchTerm] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [rechargeUser, setRechargeUser] = useState<User | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [authInfo, setAuthInfo] = useState<any>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -56,6 +60,16 @@ export default function UsersPage() {
   });
 
   useEffect(() => {
+    setAuthInfo({
+      currentUser: auth.currentUser ? {
+        uid: auth.currentUser.uid,
+        isAnonymous: auth.currentUser.isAnonymous,
+        email: auth.currentUser.email
+      } : null,
+      origin: window.location.origin,
+      hostname: window.location.hostname
+    });
+
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       console.log(`Fetched ${snapshot.size} users`);
       const usersData = snapshot.docs.map(doc => {
@@ -69,8 +83,10 @@ export default function UsersPage() {
       
       setUsers(usersData);
       setLoading(false);
+      setError(null);
     }, (error) => {
       console.error("Error fetching users:", error);
+      setError(error.message);
       setLoading(false);
     });
 
@@ -79,6 +95,7 @@ export default function UsersPage() {
       setPackages(packagesData);
     }, (error) => {
       console.error("Error fetching packages:", error);
+      setError(prev => prev ? `${prev} | Packages: ${error.message}` : `Packages: ${error.message}`);
     });
 
     return () => {
@@ -214,6 +231,16 @@ export default function UsersPage() {
         </div>
         <div className="flex items-center gap-3">
           <button 
+            onClick={() => setShowDebug(!showDebug)}
+            className={cn(
+              "p-2.5 rounded-xl border transition-colors",
+              showDebug ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            )}
+            title="Debug Info"
+          >
+            <ShieldCheck size={20} />
+          </button>
+          <button 
             onClick={() => {
               setLoading(true);
               // The onSnapshot will automatically re-fetch, but this gives visual feedback
@@ -262,6 +289,48 @@ export default function UsersPage() {
             <span>Filter</span>
           </button>
         </div>
+
+        {showDebug && (
+          <div className="m-4 p-6 bg-slate-900 rounded-3xl text-slate-300 font-mono text-xs overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-indigo-400 font-bold uppercase tracking-widest">Debug Console</h4>
+              <button onClick={() => setShowDebug(false)} className="text-slate-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-2">
+              <p><span className="text-slate-500">Auth Status:</span> {authInfo?.currentUser ? "Logged In" : "Not Logged In"}</p>
+              <p><span className="text-slate-500">User UID:</span> {authInfo?.currentUser?.uid || "N/A"}</p>
+              <p><span className="text-slate-500">Anonymous:</span> {authInfo?.currentUser?.isAnonymous ? "Yes" : "No"}</p>
+              <p><span className="text-slate-500">Domain:</span> {authInfo?.origin}</p>
+              <p><span className="text-slate-500">Firestore Path:</span> users</p>
+              <p><span className="text-slate-500">Last Error:</span> <span className="text-rose-400">{error || "None"}</span></p>
+              <div className="mt-4 pt-4 border-t border-slate-800">
+                <p className="text-indigo-400 mb-2">// Firebase Config Check</p>
+                <p><span className="text-slate-500">Project ID:</span> studio-7167098775-c79db</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="m-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-rose-600 text-sm">
+            <Ban size={18} />
+            <div className="flex-1">
+              <p className="font-bold">Database Error</p>
+              <p className="opacity-80">{error}</p>
+            </div>
+            <button 
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+              }}
+              className="p-2 hover:bg-rose-100 rounded-xl transition-colors"
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">

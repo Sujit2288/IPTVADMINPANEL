@@ -7,11 +7,12 @@
       "properties": {
         "name": { "type": "string" },
         "macAddress": { "type": "string" },
-        "status": { "type": "string", "enum": ["PENDING", "EXPIRED", "ACTIVE", "DENIED"] },
-        "expiryDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["ACTIVE", "EXPIRED", "PENDING", "DENIED"] },
+        "expiryDate": { "type": "string", "format": "date" },
         "packageId": { "type": "string" },
         "packageName": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastActive": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "macAddress", "status"]
     },
@@ -22,31 +23,31 @@
       "properties": {
         "name": { "type": "string" },
         "price": { "type": "number" },
-        "validityDays": { "type": "number" },
-        "channelIds": { "type": "array", "items": { "type": "string" } }
+        "validityDays": { "type": "integer" },
+        "description": { "type": "string" }
       },
       "required": ["name", "price", "validityDays"]
     },
     "Channel": {
       "title": "Channel",
-      "description": "A TV channel",
+      "description": "An IPTV channel",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "channelNumber": { "type": "number" },
+        "url": { "type": "string" },
         "categoryId": { "type": "string" },
-        "logoUrl": { "type": "string" },
-        "description": { "type": "string" },
-        "sources": { "type": "array", "items": { "type": "object" } }
+        "categoryName": { "type": "string" },
+        "logo": { "type": "string" }
       },
-      "required": ["name", "channelNumber", "categoryId"]
+      "required": ["name", "url", "categoryId"]
     },
     "Category": {
       "title": "Category",
       "description": "A channel category",
       "type": "object",
       "properties": {
-        "name": { "type": "string" }
+        "name": { "type": "string" },
+        "description": { "type": "string" }
       },
       "required": ["name"]
     },
@@ -57,31 +58,16 @@
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin"] }
+        "role": { "type": "string" }
       },
-      "required": ["uid", "email", "role"]
+      "required": ["uid", "role"]
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "User",
-      "description": "Collection of IPTV users"
-    },
-    "/packages/{packageId}": {
-      "schema": "Package",
-      "description": "Collection of subscription packages"
-    },
-    "/channels/{channelId}": {
-      "schema": "Channel",
-      "description": "Collection of TV channels"
-    },
-    "/categories/{categoryId}": {
-      "schema": "Category",
-      "description": "Collection of channel categories"
-    },
-    "/admins/{adminId}": {
-      "schema": "Admin",
-      "description": "Collection of administrators"
-    }
+    "/users/{userId}": { "schema": "User", "description": "Collection of IPTV users" },
+    "/packages/{packageId}": { "schema": "Package", "description": "Collection of subscription packages" },
+    "/channels/{channelId}": { "schema": "Channel", "description": "Collection of IPTV channels" },
+    "/categories/{categoryId}": { "schema": "Category", "description": "Collection of channel categories" },
+    "/admins/{adminId}": { "schema": "Admin", "description": "Collection of administrators" }
   }
 }
