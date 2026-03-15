@@ -44,7 +44,7 @@ const SidebarItem: React.FC<{ to: string, icon: any, label: string, active: bool
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, displayName, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   const handleLogout = async () => {
@@ -116,7 +116,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
           <div className="flex items-center gap-4 ml-auto">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-slate-900">{user?.email || "Admin User"}</p>
+              <p className="text-sm font-semibold text-slate-900">{displayName || user?.email || "Admin User"}</p>
               <p className="text-xs text-slate-500 font-medium">Administrator</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden">

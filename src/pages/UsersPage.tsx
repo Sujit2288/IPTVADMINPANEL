@@ -17,6 +17,7 @@ import {
   Search, 
   Filter, 
   UserPlus, 
+  Users,
   Trash2, 
   Edit2, 
   Ban, 
@@ -56,14 +57,28 @@ export default function UsersPage() {
 
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-      const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      console.log(`Fetched ${snapshot.size} users`);
+      const usersData = snapshot.docs.map(doc => {
+        try {
+          return { id: doc.id, ...doc.data() } as User;
+        } catch (e) {
+          console.error("Error parsing user document:", doc.id, e);
+          return null;
+        }
+      }).filter((u): u is User => u !== null);
+      
       setUsers(usersData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching users:", error);
       setLoading(false);
     });
 
     const unsubPackages = onSnapshot(collection(db, "packages"), (snapshot) => {
       const packagesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Package));
       setPackages(packagesData);
+    }, (error) => {
+      console.error("Error fetching packages:", error);
     });
 
     return () => {
@@ -175,8 +190,8 @@ export default function UsersPage() {
   };
 
   const filteredUsers = users.filter(user => 
-    (user.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.macAddress || "").toLowerCase().includes(searchTerm.toLowerCase())
+    String(user.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(user.macAddress || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStatusColor = (status: string) => {
@@ -197,24 +212,37 @@ export default function UsersPage() {
           <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
           <p className="text-slate-500">Manage your IPTV users and their subscriptions.</p>
         </div>
-        <button 
-          onClick={() => {
-            setEditingUser(null);
-            setFormData({
-              name: "",
-              macAddress: "",
-              status: UserStatus.PENDING,
-              expiryDate: format(new Date(), "yyyy-MM-dd"),
-              packageId: "",
-              packageName: ""
-            });
-            setIsModalOpen(true);
-          }}
-          className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-        >
-          <Plus size={20} />
-          Add User
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => {
+              setLoading(true);
+              // The onSnapshot will automatically re-fetch, but this gives visual feedback
+              setTimeout(() => setLoading(false), 500);
+            }}
+            className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            title="Refresh Users"
+          >
+            <RefreshCw size={20} className={cn(loading && "animate-spin")} />
+          </button>
+          <button 
+            onClick={() => {
+              setEditingUser(null);
+              setFormData({
+                name: "",
+                macAddress: "",
+                status: UserStatus.PENDING,
+                expiryDate: format(new Date(), "yyyy-MM-dd"),
+                packageId: "",
+                packageName: ""
+              });
+              setIsModalOpen(true);
+            }}
+            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+          >
+            <Plus size={20} />
+            Add User
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
@@ -248,304 +276,327 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
-                        {(user.name || "U").charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-slate-900">{user.name}</span>
-                        <span className="text-[10px] font-mono text-indigo-600/60">{user.macAddress}</span>
-                      </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-slate-500 font-medium">Loading users...</p>
                     </div>
                   </td>
-                  <td className="px-6 py-4 font-mono text-sm text-slate-600">{user.macAddress}</td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "px-3 py-1 rounded-full text-xs font-bold border",
-                      getStatusColor(user.status)
-                    )}>
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {(() => {
-                      if (!user.expiryDate) return "No Expiry";
-                      try {
-                        const date = new Date(user.expiryDate);
-                        if (isNaN(date.getTime())) return "Invalid Date";
-                        return format(date, "MMM dd, yyyy");
-                      } catch (e) {
-                        return "Invalid Date";
-                      }
-                    })()}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {user.packageName || packages.find(p => p.id === user.packageId)?.name || "N/A"}
-                  </td>
-                  <td className="px-6 py-4 text-right relative">
-                    <button 
-                      onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
-                      className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all"
-                    >
-                      <MoreVertical size={20} />
-                    </button>
-
-                    <AnimatePresence>
-                      {activeMenu === user.id && (
-                        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-                          <motion.div 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
-                            onClick={() => setActiveMenu(null)} 
-                          />
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.5 }}
-                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="relative w-full max-w-[280px] bg-white rounded-[32px] shadow-2xl border border-slate-100 z-[71] py-6 overflow-hidden"
-                          >
-                            <div className="px-6 pb-4 mb-4 border-b border-slate-50">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">User Actions</p>
-                              <p className="text-base font-bold text-slate-900 truncate">{user.name}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Device MAC:</span>
-                                <span className="text-xs font-mono font-bold text-indigo-600">{user.macAddress}</span>
-                              </div>
-                            </div>
-
-                            <div className="px-3 space-y-1">
-                              {user.status?.toUpperCase() === "PENDING" && (
-                                <>
-                                  <button 
-                                    onClick={() => {
-                                      setEditingUser(user);
-                                      setFormData({
-                                        name: user.name || "",
-                                        macAddress: user.macAddress || "",
-                                        status: user.status || UserStatus.PENDING,
-                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId || "",
-                                        packageName: user.packageName || ""
-                                      });
-                                      setIsModalOpen(true);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Edit2 size={18} />
-                                    Edit User
-                                  </button>
-                                  <button 
-                                    onClick={() => {
-                                      setRechargeUser(user);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <RefreshCw size={18} />
-                                    Recharge User
-                                  </button>
-                                  <button 
-                                    onClick={() => handleStatusChange(user.id, UserStatus.ACTIVE)}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <CheckCircle2 size={18} />
-                                    Activate User
-                                  </button>
-                                  <button 
-                                    onClick={() => {
-                                      setPendingUserToSwap(user);
-                                      setIsSwapModalOpen(true);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <ArrowLeftRight size={18} />
-                                    Swap MAC
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Trash2 size={18} />
-                                    Delete User
-                                  </button>
-                                </>
-                              )}
-
-                              {user.status?.toUpperCase() === "EXPIRED" && (
-                                <>
-                                  <button 
-                                    onClick={() => {
-                                      setEditingUser(user);
-                                      setFormData({
-                                        name: user.name || "",
-                                        macAddress: user.macAddress || "",
-                                        status: user.status || UserStatus.PENDING,
-                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId || "",
-                                        packageName: user.packageName || ""
-                                      });
-                                      setIsModalOpen(true);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Edit2 size={18} />
-                                    Edit User
-                                  </button>
-                                  <button 
-                                    onClick={() => {
-                                      setRechargeUser(user);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <RefreshCw size={18} />
-                                    Recharge User
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Trash2 size={18} />
-                                    Delete User
-                                  </button>
-                                </>
-                              )}
-
-                              {user.status?.toUpperCase() === "ACTIVE" && (
-                                <>
-                                  <button 
-                                    onClick={() => {
-                                      setEditingUser(user);
-                                      setFormData({
-                                        name: user.name || "",
-                                        macAddress: user.macAddress || "",
-                                        status: user.status || UserStatus.PENDING,
-                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId || "",
-                                        packageName: user.packageName || ""
-                                      });
-                                      setIsModalOpen(true);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Edit2 size={18} />
-                                    Edit User
-                                  </button>
-                                  <button 
-                                    onClick={() => {
-                                      setRechargeUser(user);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <RefreshCw size={18} />
-                                    Recharge User
-                                  </button>
-                                  <button 
-                                    onClick={() => handleStatusChange(user.id, UserStatus.DENIED)}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-amber-600 hover:bg-amber-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Ban size={18} />
-                                    Deny User
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Trash2 size={18} />
-                                    Delete User
-                                  </button>
-                                </>
-                              )}
-
-                              {user.status?.toUpperCase() === "DENIED" && (
-                                <>
-                                  <button 
-                                    onClick={() => {
-                                      setEditingUser(user);
-                                      setFormData({
-                                        name: user.name || "",
-                                        macAddress: user.macAddress || "",
-                                        status: user.status || UserStatus.PENDING,
-                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId || "",
-                                        packageName: user.packageName || ""
-                                      });
-                                      setIsModalOpen(true);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Edit2 size={18} />
-                                    Edit User
-                                  </button>
-                                  <button 
-                                    onClick={() => handleStatusChange(user.id, UserStatus.ACTIVE)}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <CheckCircle2 size={18} />
-                                    Undeny User
-                                  </button>
-                                </>
-                              )}
-
-                              {!["PENDING", "ACTIVE", "EXPIRED", "DENIED"].includes(user.status?.toUpperCase() || "") && (
-                                <>
-                                  <button 
-                                    onClick={() => {
-                                      setEditingUser(user);
-                                      setFormData({
-                                        name: user.name || "",
-                                        macAddress: user.macAddress || "",
-                                        status: user.status || UserStatus.PENDING,
-                                        expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
-                                        packageId: user.packageId || "",
-                                        packageName: user.packageName || ""
-                                      });
-                                      setIsModalOpen(true);
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Edit2 size={18} />
-                                    Edit User
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
-                                  >
-                                    <Trash2 size={18} />
-                                    Delete User
-                                  </button>
-                                </>
-                              )}
-                            </div>
-
-                            <div className="mt-6 px-6 pt-4 border-t border-slate-50">
-                              <button 
-                                onClick={() => setActiveMenu(null)}
-                                className="w-full py-3 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm"
-                              >
-                                Close
-                              </button>
-                            </div>
-                          </motion.div>
-                        </div>
-                      )}
-                    </AnimatePresence>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
+                        <Users size={24} />
+                      </div>
+                      <p className="text-slate-500 font-medium">No users found</p>
+                      <p className="text-slate-400 text-sm">Try adjusting your search or add a new user.</p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                          {(user.name || "U").charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-900">{user.name || "Unnamed User"}</span>
+                          <span className="text-[10px] font-mono text-indigo-600/60">{user.macAddress || "No MAC"}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-sm text-slate-600">{user.macAddress || "—"}</td>
+                    <td className="px-6 py-4">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-xs font-bold border",
+                        getStatusColor(user.status)
+                      )}>
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {(() => {
+                        if (!user.expiryDate) return "No Expiry";
+                        try {
+                          const date = new Date(user.expiryDate);
+                          if (isNaN(date.getTime())) return "Invalid Date";
+                          return format(date, "MMM dd, yyyy");
+                        } catch (e) {
+                          return "Invalid Date";
+                        }
+                      })()}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {user.packageName || packages.find(p => p.id === user.packageId)?.name || "N/A"}
+                    </td>
+                    <td className="px-6 py-4 text-right relative">
+                      <button 
+                        onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
+                        className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all"
+                      >
+                        <MoreVertical size={20} />
+                      </button>
+
+                      <AnimatePresence>
+                        {activeMenu === user.id && (
+                          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+                            <motion.div 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+                              onClick={() => setActiveMenu(null)} 
+                            />
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.5 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.5 }}
+                              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                              className="relative w-full max-w-[280px] bg-white rounded-[32px] shadow-2xl border border-slate-100 z-[71] py-6 overflow-hidden"
+                            >
+                              <div className="px-6 pb-4 mb-4 border-b border-slate-50">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">User Actions</p>
+                                <p className="text-base font-bold text-slate-900 truncate">{user.name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Device MAC:</span>
+                                  <span className="text-xs font-mono font-bold text-indigo-600">{user.macAddress}</span>
+                                </div>
+                              </div>
+
+                              <div className="px-3 space-y-1">
+                                {user.status?.toUpperCase() === "PENDING" && (
+                                  <>
+                                    <button 
+                                      onClick={() => {
+                                        setEditingUser(user);
+                                        setFormData({
+                                          name: user.name || "",
+                                          macAddress: user.macAddress || "",
+                                          status: user.status || UserStatus.PENDING,
+                                          expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
+                                          packageId: user.packageId || "",
+                                          packageName: user.packageName || ""
+                                        });
+                                        setIsModalOpen(true);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Edit2 size={18} />
+                                      Edit User
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setRechargeUser(user);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <RefreshCw size={18} />
+                                      Recharge User
+                                    </button>
+                                    <button 
+                                      onClick={() => handleStatusChange(user.id, UserStatus.ACTIVE)}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <CheckCircle2 size={18} />
+                                      Activate User
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setPendingUserToSwap(user);
+                                        setIsSwapModalOpen(true);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <ArrowLeftRight size={18} />
+                                      Swap MAC
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteUser(user.id)}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Trash2 size={18} />
+                                      Delete User
+                                    </button>
+                                  </>
+                                )}
+
+                                {user.status?.toUpperCase() === "EXPIRED" && (
+                                  <>
+                                    <button 
+                                      onClick={() => {
+                                        setEditingUser(user);
+                                        setFormData({
+                                          name: user.name || "",
+                                          macAddress: user.macAddress || "",
+                                          status: user.status || UserStatus.PENDING,
+                                          expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
+                                          packageId: user.packageId || "",
+                                          packageName: user.packageName || ""
+                                        });
+                                        setIsModalOpen(true);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Edit2 size={18} />
+                                      Edit User
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setRechargeUser(user);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <RefreshCw size={18} />
+                                      Recharge User
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteUser(user.id)}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Trash2 size={18} />
+                                      Delete User
+                                    </button>
+                                  </>
+                                )}
+
+                                {user.status?.toUpperCase() === "ACTIVE" && (
+                                  <>
+                                    <button 
+                                      onClick={() => {
+                                        setEditingUser(user);
+                                        setFormData({
+                                          name: user.name || "",
+                                          macAddress: user.macAddress || "",
+                                          status: user.status || UserStatus.PENDING,
+                                          expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
+                                          packageId: user.packageId || "",
+                                          packageName: user.packageName || ""
+                                        });
+                                        setIsModalOpen(true);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Edit2 size={18} />
+                                      Edit User
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setRechargeUser(user);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <RefreshCw size={18} />
+                                      Recharge User
+                                    </button>
+                                    <button 
+                                      onClick={() => handleStatusChange(user.id, UserStatus.DENIED)}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-amber-600 hover:bg-amber-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Ban size={18} />
+                                      Deny User
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteUser(user.id)}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Trash2 size={18} />
+                                      Delete User
+                                    </button>
+                                  </>
+                                )}
+
+                                {user.status?.toUpperCase() === "DENIED" && (
+                                  <>
+                                    <button 
+                                      onClick={() => {
+                                        setEditingUser(user);
+                                        setFormData({
+                                          name: user.name || "",
+                                          macAddress: user.macAddress || "",
+                                          status: user.status || UserStatus.PENDING,
+                                          expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
+                                          packageId: user.packageId || "",
+                                          packageName: user.packageName || ""
+                                        });
+                                        setIsModalOpen(true);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Edit2 size={18} />
+                                      Edit User
+                                    </button>
+                                    <button 
+                                      onClick={() => handleStatusChange(user.id, UserStatus.ACTIVE)}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <CheckCircle2 size={18} />
+                                      Undeny User
+                                    </button>
+                                  </>
+                                )}
+
+                                {!["PENDING", "ACTIVE", "EXPIRED", "DENIED"].includes(user.status?.toUpperCase() || "") && (
+                                  <>
+                                    <button 
+                                      onClick={() => {
+                                        setEditingUser(user);
+                                        setFormData({
+                                          name: user.name || "",
+                                          macAddress: user.macAddress || "",
+                                          status: user.status || UserStatus.PENDING,
+                                          expiryDate: user.expiryDate || format(new Date(), "yyyy-MM-dd"),
+                                          packageId: user.packageId || "",
+                                          packageName: user.packageName || ""
+                                        });
+                                        setIsModalOpen(true);
+                                        setActiveMenu(null);
+                                      }}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Edit2 size={18} />
+                                      Edit User
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteUser(user.id)}
+                                      className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left rounded-2xl transition-colors"
+                                    >
+                                      <Trash2 size={18} />
+                                      Delete User
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+
+                              <div className="mt-6 px-6 pt-4 border-t border-slate-50">
+                                <button 
+                                  onClick={() => setActiveMenu(null)}
+                                  className="w-full py-3 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm"
+                                >
+                                  Close
+                                </button>
+                              </div>
+                            </motion.div>
+                          </div>
+                        )}
+                      </AnimatePresence>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

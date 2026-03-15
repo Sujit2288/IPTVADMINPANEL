@@ -33,7 +33,7 @@ export default function LoginPage() {
           role: "admin"
         });
 
-        login(); // Set session flag
+        login(username); // Set session flag and store name
         navigate("/");
       } catch (err: any) {
         setError("System initialization failed. Please try again.");

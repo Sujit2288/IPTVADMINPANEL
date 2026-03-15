@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // Allow access if the user is authenticated (either via Google or Anonymous login)
+      return isAuthenticated();
+    }
+
+    // ===============================================================
+    // Data Validation Functions
+    // ===============================================================
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'macAddress', 'status']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.macAddress is string && data.macAddress.size() > 0 && data.macAddress.size() < 50 &&
+             data.status in ['PENDING', 'EXPIRED', 'ACTIVE', 'DENIED'];
+    }
+
+    function isValidPackage(data) {
+      return data.keys().hasAll(['name', 'price', 'validityDays']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is number && data.price >= 0 &&
+             data.validityDays is number && data.validityDays > 0;
+    }
+
+    function isValidChannel(data) {
+      return data.keys().hasAll(['name', 'channelNumber', 'categoryId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.channelNumber is number &&
+             data.categoryId is string;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100;
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role == 'admin';
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /users/{userId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidUser(request.resource.data);
+      allow update: if isAdmin() && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /packages/{packageId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidPackage(request.resource.data);
+      allow update: if isAdmin() && isValidPackage(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /channels/{channelId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidChannel(request.resource.data);
+      allow update: if isAdmin() && isValidChannel(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidCategory(request.resource.data);
+      allow update: if isAdmin() && isValidCategory(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      // Allow the first admin to create their own record if they match the email
+      allow create: if (isAuthenticated() && request.auth.token.email == "sankarnarayanbera7@gmail.com" && request.auth.token.email_verified == true) || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

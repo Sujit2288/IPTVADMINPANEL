@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "An IPTV user",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "macAddress": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "EXPIRED", "ACTIVE", "DENIED"] },
+        "expiryDate": { "type": "string" },
+        "packageId": { "type": "string" },
+        "packageName": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "macAddress", "status"]
+    },
+    "Package": {
+      "title": "Package",
+      "description": "A subscription package",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "validityDays": { "type": "number" },
+        "channelIds": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "price", "validityDays"]
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "A TV channel",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "channelNumber": { "type": "number" },
+        "categoryId": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "sources": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["name", "channelNumber", "categoryId"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A channel category",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "An administrator",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin"] }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of IPTV users"
+    },
+    "/packages/{packageId}": {
+      "schema": "Package",
+      "description": "Collection of subscription packages"
+    },
+    "/channels/{channelId}": {
+      "schema": "Channel",
+      "description": "Collection of TV channels"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Collection of channel categories"
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Collection of administrators"
+    }
+  }
+}

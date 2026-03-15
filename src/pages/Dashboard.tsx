@@ -15,6 +15,8 @@ import {
 import { motion } from "motion/react";
 import { UserStatus } from "../types";
 
+import { cn } from "../lib/utils";
+
 const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
@@ -39,8 +41,6 @@ const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
   </motion.div>
 );
 
-import { cn } from "../lib/utils";
-
 export default function Dashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -57,7 +57,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const users = snapshot.docs.map(doc => {
+        try {
+          return { id: doc.id, ...doc.data() } as any;
+        } catch (e) {
+          console.error("Error parsing user document for dashboard:", doc.id, e);
+          return null;
+        }
+      }).filter(u => u !== null);
+
       setStats(prev => ({
         ...prev,
         totalUsers: snapshot.size,
@@ -68,18 +76,26 @@ export default function Dashboard() {
       }));
       
       // Sort and get top 3 recent users
-      const sorted = [...users].sort((a: any, b: any) => 
-        new Date(b.expiryDate).getTime() - new Date(a.expiryDate).getTime()
-      ).slice(0, 3);
+      const sorted = [...users].sort((a: any, b: any) => {
+        const dateA = a.expiryDate ? new Date(a.expiryDate).getTime() : 0;
+        const dateB = b.expiryDate ? new Date(b.expiryDate).getTime() : 0;
+        return dateB - dateA;
+      }).slice(0, 3);
       setRecentUsers(sorted);
+    }, (error) => {
+      console.error("Error fetching users for dashboard:", error);
     });
 
     const unsubPackages = onSnapshot(collection(db, "packages"), (snapshot) => {
       setStats(prev => ({ ...prev, totalPackages: snapshot.size }));
+    }, (error) => {
+      console.error("Error fetching packages for dashboard:", error);
     });
 
     const unsubChannels = onSnapshot(collection(db, "channels"), (snapshot) => {
       setStats(prev => ({ ...prev, totalChannels: snapshot.size }));
+    }, (error) => {
+      console.error("Error fetching channels for dashboard:", error);
     });
 
     return () => {
@@ -155,20 +171,27 @@ export default function Dashboard() {
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Recent Activity</h3>
           <div className="space-y-6">
-            {recentUsers.map((user) => (
-              <div key={user.id} className="flex gap-4">
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                  <UserPlus size={18} />
+            {recentUsers.length > 0 ? (
+              recentUsers.map((user) => (
+                <div key={user.id} className="flex gap-4">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                    <UserPlus size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">User Registered/Updated</p>
+                    <p className="text-xs text-slate-500">User "{user.name}" with MAC <span className="font-mono text-indigo-600">{user.macAddress}</span></p>
+                    <p className="text-[10px] text-slate-400 mt-1">Status: {user.status}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">User Registered/Updated</p>
-                  <p className="text-xs text-slate-500">User "{user.name}" with MAC <span className="font-mono text-indigo-600">{user.macAddress}</span></p>
-                  <p className="text-[10px] text-slate-400 mt-1">Status: {user.status}</p>
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-3">
+                  <Users size={24} />
                 </div>
+                <p className="text-slate-500 font-medium">No recent activity</p>
+                <p className="text-slate-400 text-xs mt-1">New users will appear here.</p>
               </div>
-            ))}
-            {recentUsers.length === 0 && (
-              <p className="text-center text-slate-400 py-4">No recent activity</p>
             )}
           </div>
         </div>
